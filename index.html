@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8' />
+    <link href='//cdnjs.cloudflare.com/ajax/libs/fullcalendar/2.7.2/fullcalendar.min.css' rel='stylesheet' />
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css" integrity="sha384-1q8mTJOASx8j1Au+a5WDVnPi2lkFfwwEAa8hDDdjZlpLegxhjVME1fgjWPGmkzs7" crossorigin="anonymous">
+    <script src='//cdnjs.cloudflare.com/ajax/libs/moment.js/2.13.0/moment.min.js'></script>
+    <script src='//cdnjs.cloudflare.com/ajax/libs/jquery/2.1.4/jquery.min.js'></script>
+    <script src='//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.0.0-alpha/js/bootstrap.min.js'></script>
+    <script src='//cdnjs.cloudflare.com/ajax/libs/fullcalendar/2.7.2/fullcalendar.min.js'></script>
+    <script src='//cdnjs.cloudflare.com/ajax/libs/lodash.js/4.13.1/lodash.min.js'></script>
+    <script>
+        
+        //  Bind the settings to the calendar, then render the events  
+        $(document).ready(function() {                                   
+            $('#calendar').fullCalendar(_calendarSettings);            
+            $('#calendar').fullCalendar('renderEvents');
+            
+            //  Make sure that the user cannot create a new line on the edit of the title text
+            document.getElementById('txtTitle').addEventListener('keypress', function(evt) {
+                if (evt.which === 13) {
+                    evt.preventDefault();
+                }
+            });                        
+        });
+        
+        //  Creates the event list and a variable to hold the current event
+        var _currentlySelectedItem = {};
+        var _newId = 3; // ID SEED, WOULD NOT BE REQUIRED WITH A DATABASE
+        var _revertFunction = {};
+        
+        //  Object that is used to pass settings to the JQuery plugin
+        var _calendarSettings = {
+            header: {
+                left: 'prev,next',
+                center: 'title',
+                right: 'month,basicWeek,basicDay'
+            },
+            defaultDate: moment(),
+            editable: true,
+            eventClick: function(calEvent, jsEvent, view) {
+                $('#editModal').modal('show');
+                $('#txtTitle').val(calEvent.title);
+                $('#txtContent').val(calEvent.content)
+                _currentlySelectedItem = calEvent;
+            },
+            eventLimit: true, // allow "more" link when too many events
+            events: GetEvents(),
+            eventDrop: function(event, delta, revertFunc) {               
+                //  Assign the appropriate revert function
+                _revertFunction = revertFunc;              
+                $('#confirmModal').modal('show');
+            },
+            dayClick: function(date, jsEvent, view) {
+                //  Setup the object to store the new item                        
+                _currentlySelectedItem = {
+                    id: _newId++,
+                    title: '',
+                    start: date,
+                    content: '',
+                    edit: false
+                }
+
+                //  Need to open the dialog now to allow the evnt to be added??
+                $('#editModal').modal('show');
+                $('#txtTitle').val('');
+                $('#txtContent').val('')
+                
+            }
+        };
+               
+        //  THIS WOULD BE REPLACED BY AN API CALL
+        function GetEvents () {
+            return [                    
+                {
+                    id: 1,
+                    title: 'Buy a cat!',
+                    start: '2016-05-01',
+                    content: 'this is the content about buying a cat',
+                    edit: true
+                },
+                {
+                    id: 2,
+                    title: 'Buy a dog!',
+                    start: '2016-05-02',
+                    content: 'this is the content about buying a dog',
+                    edit: true
+                    
+                }
+            ];
+        }
+        
+        //  Take the assigned revert function, then reset it
+        function CancelMoveEvent () {  
+            _revertFunction();
+            _revertFunction = {};
+        }
+        
+        //  Reset the revert function
+        function ConfirmMoveEvent () {            
+            _revertFunction = {};
+        }
+        
+        function DeleteEvent () {
+            
+            //  THIS PART WOULD BE MOVED TO API CALLS
+            var itemIndex = _.indexOf(_calendarSettings.events, _.find(_calendarSettings.events, _currentlySelectedItem ));     
+            _.remove(_calendarSettings.events, function(n) {
+                return n.id == _currentlySelectedItem.id;
+            });
+            
+            $("#calendar").fullCalendar('removeEvents', _currentlySelectedItem.id);                 
+        }
+        
+        function ShowDeleteEvent () {
+            $('#editModal').modal('hide');  
+            $('#deleteModal').modal('show');                                    
+        }
+        
+        function SaveEvent () {                
+            _currentlySelectedItem.title = $('#txtTitle').val();
+            _currentlySelectedItem.content = $('#txtContent').val();
+            
+            //  Is the item new, or editable?
+            if (_currentlySelectedItem.edit) {           
+                //  Find the item that is being edited
+                var itemIndex = _.indexOf(_calendarSettings.events, _.find(_calendarSettings.events, _currentlySelectedItem ));           
+                //  Edit the contents of the item
+                var item = _.filter(_calendarSettings.events, ['id', _currentlySelectedItem.id]);              
+                //  Put the item back in the array, we'd do this with an API call usually     
+                _calendarSettings.events.splice(itemIndex, 1, _currentlySelectedItem);    
+                $("#calendar").fullCalendar('updateEvent', _currentlySelectedItem);        
+            }
+            else {
+                _currentlySelectedItem.edit = true;
+                _calendarSettings.events.push(_currentlySelectedItem);
+                $("#calendar").fullCalendar('renderEvent', _currentlySelectedItem);  
+            }
+      
+            //  Hide the modal finally            
+            $('#editModal').modal('hide');                                  
+        }
+        
+
+    </script>
+</head>
+<body>
+    <!-- The FullCalendar.io calendar control -->
+	<div id='calendar' style='max-width: 900px; margin: 0 auto;'></div>
+
+    <!-- Modal used to edit an event -->
+    <div class="modal fade" id="editModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <input id="txtTitle" placeholder='Enter a title for this event' style="width: 100%" /></h4>
+                </div>              
+                <div class="modal-body" id="myModalBody">
+                    <textarea id="txtContent" rows="10" style="width: 100%"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-warning" onclick="ShowDeleteEvent()">Delete</button>
+                    <button type="button" class="btn btn-primary" onclick="SaveEvent()">Save changes</button>
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal for confirning and cancelling the moving of an event -->
+    <div class="modal fade" id="confirmModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4>Are you sure?</h4>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-dismiss="modal" onclick="ConfirmMoveEvent()">Ok</button>
+                    <button type="button" class="btn btn-default" data-dismiss="modal" onclick="CancelMoveEvent()">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal for confirning and deleteing the moving of an event -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h4>Are you sure?</h4>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-dismiss="modal" onclick="DeleteEvent()">Ok</button>
+                    <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
